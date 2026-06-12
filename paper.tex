@@ -360,6 +360,45 @@ field or graph annotations, so this signal is not part of the published
 reference baselines. It is included here because the definition is general and
 future benchmark releases may include explicit structural context.
 
+\subsection{Open-File Signal Imputation}
+
+Open-file signal imputation is a specific structural signal for edit-follow-up
+turns. The motivating observation is that a short prompt such as ``make this
+smaller'' may not contain enough lexical information to identify a file, but the
+file currently in view is strong context. The signal starts with a seed score on
+the open file and imputes relevance to nearby files through a public structural
+relation such as an import graph.
+
+Let $o$ be the open file, $G=(C,E)$ be a directed graph over candidate files,
+and $\mathcal{N}(u)$ be the outgoing neighbors of file $u$. One reproducible
+definition initializes:
+
+\[
+s_{\mathrm{imp}}(o) = 1,\qquad
+s_{\mathrm{imp}}(c_i) = 0 \text{ for } c_i \neq o.
+\]
+
+For each reachable edge $(u,v)$, score can be propagated with decay:
+
+\[
+s_{\mathrm{imp}}(v) =
+\max\left(s_{\mathrm{imp}}(v),
+\frac{\lambda \cdot s_{\mathrm{imp}}(u)}
+{\max(1, |\mathcal{N}(u)|)}\right),
+\]
+
+where $0 < \lambda < 1$. The division by out-degree prevents high-fanout files
+from giving every dependency the same confidence as the open file, while the
+\texttt{max} rule keeps the strongest path when a file is reachable in multiple
+ways. A submission could instead use summation or a different graph relation,
+but it should publish the seed file source, graph construction, decay rule,
+cycle handling, and whether scores are propagated along imports, reverse
+imports, routes, component references, or another relation.
+
+The current public fixtures do not include open-file metadata, so this signal is
+defined for reproducibility and future dataset growth rather than scored in the
+first reference table.
+
 \subsection{Boilerplate and Distractor Priors}
 
 Generated apps and framework templates often contain files that are valid code
