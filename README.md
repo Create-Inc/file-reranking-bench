@@ -3,7 +3,7 @@
 Benchmark data and aggregate evaluation results for file selection in
 code-editing LLM agents.
 
-**Paper:** [FileRerankingBench: A Small Benchmark for File Selection in
+**Paper:** [FileRerankingBench: A Benchmark for File Selection in
 Code-Editing Agents](paper.pdf) ([source](paper.tex))
 
 **Authors:** Ahmad Jiha, Daniel Chen - Anything, Inc.
@@ -18,7 +18,7 @@ This repository publishes the public benchmark artifact only:
 - the paper source and PDF
 
 This repository is deliberately limited to the public benchmark artifact and
-does not include implementation source code or runtime details.
+does not include ranking-system source code or runtime details.
 
 ## Repository Layout
 
@@ -64,7 +64,7 @@ without expanding the repository beyond data, results, and the paper.
 
 ```bibtex
 @misc{jiha2026filererankingbench,
-  title        = {FileRerankingBench: A Small Benchmark for File Selection in Code-Editing Agents},
+  title        = {FileRerankingBench: A Benchmark for File Selection in Code-Editing Agents},
   author       = {Ahmad Jiha and Daniel Chen},
   year         = {2026},
   howpublished = {\url{https://github.com/Create-Inc/file-reranking-bench}},

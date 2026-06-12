@@ -5,17 +5,23 @@
 \usepackage[margin=1in]{geometry}
 \usepackage{amsmath}
 \usepackage{booktabs}
+\usepackage{enumitem}
 \usepackage{hyperref}
+\usepackage{lmodern}
+\usepackage{microtype}
 \usepackage{tabularx}
+\usepackage{xurl}
 
 \hypersetup{
+  pdftitle={FileRerankingBench: A Benchmark for File Selection in Code-Editing Agents},
+  pdfauthor={Ahmad Jiha and Daniel Chen},
   colorlinks=true,
   linkcolor=blue,
   citecolor=blue,
   urlcolor=blue
 }
 
-\title{\textbf{FileRerankingBench:\\A Small Benchmark for File Selection in Code-Editing Agents}}
+\title{\textbf{FileRerankingBench:\\A Benchmark for File Selection in Code-Editing Agents}}
 \author{Ahmad Jiha \and Daniel Chen\\Anything, Inc.}
 \date{}
 
@@ -23,49 +29,190 @@
 \maketitle
 
 \begin{abstract}
-Code-editing LLM agents need to select a small set of relevant project files
-before editing. FileRerankingBench is a small public benchmark for that
-file-selection step. The benchmark contains prompt-level relevance labels,
-candidate file metadata, a project corpus, and aggregate evaluation numbers.
-The public artifact is intentionally limited to benchmark data, aggregate
-results, and this paper.
+Code-editing agents must often choose which project files to inspect or edit
+before they can complete a user request. That file-selection step is easy to
+hide inside larger end-to-end agent evaluations, but failures at this step can
+dominate the user-visible behavior of a code-editing system: if the relevant
+file is absent from context, even a strong editor may fail. FileRerankingBench
+isolates this pre-edit ranking problem. Each benchmark case contains a user
+prompt, a candidate file list with timestamp metadata, a project corpus, and
+prompt-level relevance labels. The first public release is intentionally small:
+five query fixtures over one hiking-app project. This paper specifies the task,
+data format, labeling semantics, evaluation metrics, reference baselines,
+published aggregate results, and intended use of the public artifact. The
+release is limited to benchmark data, aggregate numbers, and paper materials.
 \end{abstract}
 
-\section{Motivation}
+\section{Introduction}
 
-Code-editing agents often operate on projects that are too large to place
-entirely in model context. Before the model edits code, a system must decide
-which files are likely to matter for the user's request. Poor file selection can
-cause the agent to miss the relevant file, edit the wrong file, or waste context
-on unrelated boilerplate.
+Large language model agents for software editing do not usually operate over a
+complete repository at every turn. Project files must be selected, ranked, or
+otherwise compressed before the editor receives context. This creates a
+retrieval problem that is adjacent to code search but not identical to it. The
+query is often a natural-language product request rather than an API name. The
+desired output is not a document to read, but one or more files likely to be
+edited. The cost of a miss is high: when the relevant file is excluded, the
+downstream editor may modify an adjacent file, create redundant code, or spend
+extra turns recovering information that could have been available immediately.
 
-FileRerankingBench isolates this pre-edit file-selection problem. Each benchmark
-case provides a user prompt, a set of candidate files with timestamp metadata,
-and the expected relevant file paths.
+Many code-agent benchmarks evaluate final task success. That is valuable, but
+it entangles several abilities: understanding the user request, retrieving the
+right files, editing code, preserving existing behavior, and satisfying tests.
+FileRerankingBench focuses on one narrower question: given a user request and a
+candidate file set, can a ranking method put the relevant file paths near the
+top? This isolated formulation makes it possible to compare simple ranking
+rules, metadata priors, and future learned rankers without requiring a full
+agent run.
 
-\section{Dataset}
+The current public release should be read as a benchmark artifact and format
+definition rather than a broad statistical study. It contains one project and
+five query fixtures. That scale is too small to support claims about general
+model quality, but it is large enough to define the task precisely, publish
+reference metrics, and provide regression cases for future dataset expansion.
+Keeping the first release small also makes the data easy to inspect manually,
+which is useful for checking path conventions, empty-label behavior, timestamp
+handling, and metric definitions.
 
-The current public dataset contains one small hiking-app project and five query
-fixtures. The cases cover:
+This paper contributes:
 
-\begin{itemize}
-\item direct lexical matches between the prompt and target page,
-\item stale or misleading recency metadata,
-\item paraphrased references to UI text,
-\item and a prompt whose requested page does not exist in the candidate set.
+\begin{itemize}[leftmargin=2em]
+\item a formal definition of prompt-conditioned file reranking;
+\item a public JSON fixture format for candidate files, timestamps, and
+relevance labels;
+\item a small project corpus and five labeled query fixtures;
+\item Recall@$k$ and Precision@$k$ definitions, including edge cases for empty
+relevance sets and candidate lists shorter than $k$;
+\item transparent reference numbers for simple baselines; and
+\item a data card describing intended use, non-goals, and known limitations.
 \end{itemize}
 
-The fixture file is \texttt{data/file-reranking-evals.json}. The project corpus
-is \texttt{data/projects/hiking-app-small.zip}. Candidate paths in the fixture
-are app-root paths, for example
-\texttt{/apps/web/pages/index/+Page.jsx}; the zip stores files below
-\texttt{createxyz-project/}.
+\section{Task Definition}
+
+Let $P$ be a project corpus containing source files and related project
+metadata. A benchmark case supplies a user prompt $q$, a candidate file set
+$C = \{c_1, \ldots, c_n\}$, and a set of expected relevant file paths $R$.
+Each candidate $c_i$ contains at least a path, a creation timestamp, and an
+optional update timestamp. A ranking method receives $q$ and $C$ and returns an
+ordered list of candidate file paths. The objective is to place files in $R$
+near the top of that ordered list.
+
+The benchmark evaluates the file-selection stage before editing. It does not
+score whether a generated patch is correct, whether a user interface looks good,
+or whether tests pass after a change. Those are important questions, but they
+belong to larger end-to-end evaluations. FileRerankingBench deliberately removes
+the editor from the loop so that retrieval errors are visible on their own.
+
+\subsection{Candidate Files}
+
+Candidate files are the files made available to a ranking method for a single
+query. The current fixtures use three candidate files per query, all from the
+same small web app. Future fixtures may include larger candidate sets, generated
+boilerplate, tests, configuration files, or files from several app surfaces.
+Candidate metadata is part of the task because real file-selection decisions
+often depend on both content and recency. A method may ignore metadata, use it
+as a tie breaker, or rank primarily from it.
+
+Candidate paths in the JSON file are app-root paths with a leading slash, such
+as \path{/apps/web/pages/index/+Page.jsx}. The project zip stores files below
+\texttt{createxyz-project/}. To resolve a fixture path inside the zip, remove
+the leading slash and join the result below that root directory. This convention
+keeps labels stable even if the archive is unpacked into a different local
+directory.
+
+\subsection{Relevance Labels}
+
+The label set $R$ contains file paths expected to be relevant for satisfying the
+prompt. In the first release, relevance is single-file for four cases and empty
+for one negative case. An empty relevance set means the requested target is not
+present in the candidate set. This is a meaningful file-selection condition: a
+ranking method should not be rewarded for confidently selecting an unrelated
+file when the prompt asks for a page that does not exist.
+
+The benchmark allows multi-file labels even though the first release does not
+exercise them. Multi-file labels are important for future cases where a request
+requires coordinated edits, such as changing a component and its caller or
+adding behavior that spans route, state, and test files. Metrics in Section
+\ref{sec:metrics} are defined for arbitrary $|R|$.
+
+\section{Dataset Design}
+\label{sec:dataset-design}
+
+FileRerankingBench stores benchmark cases as a JSON array. Each element has a
+single \texttt{input} object. Table~\ref{tab:schema} lists the fields used in
+the current release.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+Field & Description \\
+\midrule
+\texttt{input.project} & Project corpus identifier. In the current release this
+is \texttt{hiking-app-small}. \\
+\texttt{input.userPrompt} & Natural-language request that requires selecting
+zero or more relevant files. \\
+\texttt{input.files[]} & Candidate files for the query. Each item includes
+\texttt{path}, \texttt{createdAt}, and \texttt{updatedAt}. \\
+\texttt{input.expectedRelevantFiles[]} & Paths labeled relevant for the prompt.
+The array may be empty when no candidate file is relevant. \\
+\bottomrule
+\end{tabularx}
+\caption{Public fixture schema. The schema is intentionally simple so that
+external tools can load the benchmark without adopting a specific agent stack.}
+\label{tab:schema}
+\end{table}
+
+The first corpus is a hiking-themed app with three candidate page files:
+
+\begin{itemize}[leftmargin=2em]
+\item \path{/apps/web/pages/index/+Page.jsx}
+\item \path{/apps/web/pages/hiking-history/+Page.jsx}
+\item \path{/apps/web/pages/explore/+Page.jsx}
+\end{itemize}
+
+The project archive also contains surrounding app files, package files, and
+mobile-app scaffolding. The benchmark cases restrict the candidate set to the
+three web pages above so that the first release stays manually inspectable. A
+larger candidate set is a priority for subsequent releases.
+
+\subsection{Query Types}
+
+The five public fixtures are designed to cover a few distinct retrieval
+conditions rather than many independent applications. Table~\ref{tab:queries}
+summarizes the cases.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{lXl}
+\toprule
+Type & Prompt pattern & Expected file behavior \\
+\midrule
+Direct page reference & The prompt names the landing page and a button on that
+page. & The index page should rank first. \\
+Direct reference with recency & The same landing-page request, but timestamp
+metadata favors the same target. & The index page remains relevant. \\
+Paraphrased UI reference & The prompt names button text without naming the
+file. & The hiking-history page should rank first. \\
+Paraphrase with misleading recency & The same button-text request, but another
+page has fresher metadata. & Content should beat misleading recency. \\
+Missing target & The prompt asks for a Scoreboard page not present in the
+candidate set. & No candidate file is relevant. \\
+\bottomrule
+\end{tabularx}
+\caption{Query conditions in the first public release. The dataset is small,
+but it includes lexical, metadata, paraphrase, and negative-label behavior.}
+\label{tab:queries}
+\end{table}
 
 \section{Metrics}
+\label{sec:metrics}
 
 The benchmark reports Recall@$k$ and Precision@$k$ for
-$k \in \{1, 3, 5, 10\}$. Let $T_k$ be the top-$k$ returned files and let $R$ be
-the set of expected relevant files.
+$k \in \{1, 3, 5, 10\}$. Let $T_k$ be the first $k$ files returned by a ranking
+method after truncating to the available candidates, and let $R$ be the expected
+relevance set.
 
 \[
 \mathrm{Recall}@k =
@@ -76,65 +223,233 @@ the set of expected relevant files.
 \]
 
 \[
-\mathrm{Precision}@k = \frac{|T_k \cap R|}{|T_k|}
+\mathrm{Precision}@k =
+\begin{cases}
+0 & \text{if } |T_k| = 0,\\
+\frac{|T_k \cap R|}{|T_k|} & \text{otherwise.}
+\end{cases}
 \]
 
-If fewer than $k$ candidate files are available, $T_k$ contains only the
-available candidates.
+The empty-relevance recall convention deserves emphasis. If no candidate is
+relevant, recall is defined as 1 because there is no relevant file to retrieve.
+Precision remains sensitive to the ranked output: selecting unrelated files
+does not create true positives. This mirrors the practical distinction between
+not missing a relevant file and avoiding false confidence in irrelevant files.
+
+Scores are macro-averaged across query fixtures. Macro averaging gives every
+prompt equal weight, which is appropriate for a small benchmark where each
+fixture is hand-authored and intended to represent a distinct condition. Future
+larger releases may also report project-level averages or stratified metrics by
+query type.
+
+When a query has fewer than $k$ candidate files, $T_k$ contains all available
+candidates. In the current release every query has three candidates, so
+Recall@5 and Recall@10 are identical to Recall@3; likewise Precision@5 and
+Precision@10 use the same three returned files. The metrics are still reported
+at all four cutoffs so that result tables remain compatible with future
+fixtures that contain larger candidate sets.
+
+\section{Reference Baselines}
+
+The public result table includes four reference rows. These rows are not meant
+to represent a complete leaderboard. They are sanity checks that make the metric
+definitions concrete and give future submissions a stable point of comparison.
+
+\paragraph{Original candidate order.}
+This baseline returns files in the order provided by the fixture. It is useful
+because JSON order is visible, deterministic, and requires no scoring model.
+If a benchmark case is accidentally ordered with the answer first, this row
+makes that bias visible.
+
+\paragraph{Recency baseline.}
+This baseline ranks candidates by the most recent timestamp available for each
+file, using \texttt{updatedAt} when present and \texttt{createdAt} otherwise.
+It tests whether timestamp metadata alone is enough to recover the relevant
+file. In the current fixture set, recency helps in one direct-reference case but
+hurts in the paraphrased case where the fresher file is not the target.
+
+\paragraph{Lexical baseline.}
+This baseline ranks by transparent lexical overlap between the user prompt and
+candidate file evidence. It is intended to capture the simplest keyword-matching
+strategy: distinctive words in the prompt should help when they appear in the
+target path or file text, while paraphrases and absent pages remain difficult.
+
+\paragraph{Rank-all oracle upper bound.}
+This row places all labeled relevant files before non-relevant files. It is not
+a deployable method; it is an upper bound induced by the labels and candidate
+set. The row is useful for checking metric behavior, especially the effect of
+the empty-label query on macro-averaged precision.
 
 \section{Published Results}
+\label{sec:results}
 
 Table~\ref{tab:results} reports aggregate reference numbers over the current
-public fixture set. These numbers are intended to anchor the benchmark and make
-future comparisons explicit without expanding the public artifact beyond data,
-results, and this paper.
+public fixture set. The table should be interpreted as a benchmark-format anchor
+and regression reference. It should not be interpreted as evidence that one
+general file-selection approach is superior across broad code-editing tasks.
 
 \begin{table}[h]
 \centering
-\small
-\begin{tabularx}{\textwidth}{lrrrr}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{lrrrrrrrr}
 \toprule
-System & Recall@1 & Precision@1 & Recall@3 & Precision@3 \\
+System & R@1 & P@1 & R@3 & P@3 & R@5 & P@5 & R@10 & P@10 \\
 \midrule
-Original candidate order & 0.6000 & 0.4000 & 1.0000 & 0.2667 \\
-Recency baseline & 0.4000 & 0.2000 & 1.0000 & 0.2667 \\
-Lexical baseline & 0.6000 & 0.4000 & 1.0000 & 0.2667 \\
-Rank-all oracle upper bound & 1.0000 & 0.8000 & 1.0000 & 0.2667 \\
+Original candidate order & 0.6000 & 0.4000 & 1.0000 & 0.2667 & 1.0000 & 0.2667 & 1.0000 & 0.2667 \\
+Recency baseline & 0.4000 & 0.2000 & 1.0000 & 0.2667 & 1.0000 & 0.2667 & 1.0000 & 0.2667 \\
+Lexical baseline & 0.6000 & 0.4000 & 1.0000 & 0.2667 & 1.0000 & 0.2667 & 1.0000 & 0.2667 \\
+Rank-all oracle upper bound & 1.0000 & 0.8000 & 1.0000 & 0.2667 & 1.0000 & 0.2667 & 1.0000 & 0.2667 \\
 \bottomrule
 \end{tabularx}
-\caption{Macro-averaged results over five public benchmark cases. Recall@5,
-Precision@5, Recall@10, and Precision@10 match the Recall@3 and Precision@3
-columns in this corpus because each case has three candidate files.}
+\caption{Macro-averaged results over five public benchmark cases. Because each
+case has three candidate files, the @5 and @10 columns match the @3 columns in
+this release.}
 \label{tab:results}
 \end{table}
+
+The numbers expose two properties of the first dataset. First, the top-1
+position matters: all non-oracle baselines reach Recall@3 because all available
+files are included by that point, but their Recall@1 and Precision@1 differ.
+Second, the negative query lowers precision for rank-all-style outputs. The
+rank-all oracle has Recall@1 of 1.0 because it retrieves the relevant file when
+one exists and has no relevant file to miss in the empty-label case; its
+Precision@1 is 0.8 because the empty-label case contributes no true positive.
+
+\section{Data Card}
+
+\paragraph{Dataset name.}
+FileRerankingBench, first public release.
+
+\paragraph{Dataset contents.}
+The release contains \texttt{data/file-reranking-evals.json}, one project corpus
+archive at \texttt{data/projects/hiking-app-small.zip}, aggregate result tables,
+and this paper. The fixture file contains five query cases. Each case references
+the same project and provides three candidate files.
+
+\paragraph{Task.}
+Given a prompt and candidate file metadata, return a ranked list of candidate
+file paths. The task is evaluated against prompt-level relevance labels.
+
+\paragraph{Intended use.}
+The dataset is intended for small-scale regression testing, metric validation,
+format validation, and demonstration of file-selection evaluation. It can also
+serve as seed data for larger file-reranking datasets.
+
+\paragraph{Out-of-scope use.}
+The dataset is not large enough to support broad claims about model quality,
+agent quality, or general code-search performance. It should not be used as the
+sole basis for choosing a ranking method.
+
+\paragraph{Privacy and licensing.}
+The project corpus is included for public benchmark use. The release does not
+include private repositories, user data, or source code for ranking systems.
+
+\paragraph{Known biases.}
+The first release is web-page-heavy, English-only, and centered on a single
+small app. Candidate sets are tiny compared with real projects. Labels are
+single-file except for the negative case. These choices make the first release
+easy to inspect, but they limit external validity.
+
+\section{Relationship to Broader Evaluations}
+
+End-to-end software-agent evaluations such as repository repair benchmarks
+measure whether a model can produce a final correct change. FileRerankingBench
+occupies a smaller slice of that problem. It asks whether the right files are
+available near the top of the candidate list before editing begins. This
+positioning is complementary: a file-selection benchmark cannot replace
+end-to-end tests, but end-to-end tests can make retrieval failures difficult to
+diagnose.
+
+The benchmark is also related to information retrieval metrics such as BM25 and
+top-$k$ recall \cite{robertson2009probabilistic}. The difference is the unit of
+retrieval. In web or passage retrieval, the returned item is usually the final
+object the user consumes. In file selection for code editing, the returned item
+is intermediate context for another process. That makes high recall at small
+$k$ particularly important: the file need only be available to the editor, but
+if it is absent, later stages may never recover.
+
+Long-context work has shown that simply providing more text is not always a
+solution; models may underuse information placed in long inputs
+\cite{liu2024lost}. File reranking is therefore not only a cost optimization.
+It is also a way to control which information receives attention. A benchmark
+that isolates this step can help compare whether a method finds the relevant
+files before the downstream editor consumes context.
+
+\section{Limitations and Future Work}
+
+The most important limitation is size. Five query fixtures over one project are
+not enough for a broad empirical claim. The current release is best understood
+as a public seed and a precise specification. The next release should add more
+projects, larger candidate sets, multi-file labels, and more negative cases.
+
+The second limitation is task diversity. The current corpus is focused on page
+selection in a small web app. Future versions should include mobile files,
+backend routes, shared components, tests, configuration files, data schemas, and
+cross-file edits. These additions would make the benchmark more representative
+of the range of files a code-editing agent may need.
+
+The third limitation is label depth. The current labels identify relevant file
+paths, not spans, edit locations, or reasons for relevance. Path-level labels
+are the right starting point for file reranking, but richer annotations could
+support more detailed analysis. For example, future releases could distinguish
+``must edit,'' ``useful context,'' and ``distractor'' files.
+
+Finally, the current benchmark reports only aggregate metrics. As the dataset
+grows, result reports should include per-category breakdowns: lexical vs.
+paraphrased prompts, recency-helpful vs. recency-misleading cases, single-file
+vs. multi-file labels, and present-target vs. absent-target prompts. Those
+breakdowns will make it easier to see which retrieval conditions are actually
+improving.
 
 \section{Release Contents}
 
 The public repository at
 \url{https://github.com/Create-Inc/file-reranking-bench} contains:
 
-\begin{itemize}
-\item the benchmark fixture JSON,
-\item the project corpus zip,
-\item aggregate result tables,
-\item and this paper.
+\begin{itemize}[leftmargin=2em]
+\item \texttt{data/file-reranking-evals.json}: benchmark fixture JSON;
+\item \texttt{data/projects/hiking-app-small.zip}: project corpus archive;
+\item \texttt{results/aggregate-results.csv}: aggregate reference numbers;
+\item \texttt{RESULTS.md}: human-readable result summary; and
+\item \texttt{paper.tex} and \texttt{paper.pdf}: this paper.
 \end{itemize}
 
-The release does not include implementation source code or runtime details.
-
-\section{Limitations}
-
-The current corpus is intentionally small: five queries over one project. It is
-best understood as a regression benchmark and publication artifact, not a broad
-statistical measurement of file-selection quality. Future versions should add
-more projects, more user prompts, multi-file relevance labels, and richer
-negative cases.
+The release is deliberately limited to benchmark artifacts and published
+aggregate numbers. It does not include source code for ranking systems or
+runtime details.
 
 \section{Conclusion}
 
 FileRerankingBench provides a compact public artifact for evaluating the
-file-selection step in code-editing agents. By publishing the data and aggregate
-results, the benchmark can support external comparison while keeping the release
-focused on reproducible benchmark artifacts.
+file-selection step in code-editing agents. The first release is small, but it
+defines a concrete task, a simple data schema, metric behavior for important
+edge cases, and reference numbers for transparent baselines. The benchmark is
+intended to grow into a larger corpus while preserving the same public contract:
+prompt-level labels, candidate file metadata, project corpora, and aggregate
+evaluation results.
+
+\begin{thebibliography}{9}
+
+\bibitem{jimenez2024swebench}
+Carlos E. Jimenez, John Yang, Alexander Wettig, Shunyu Yao, Kexin Pei,
+Ofir Press, and Karthik Narasimhan.
+\newblock SWE-bench: Can language models resolve real-world GitHub issues?
+\newblock In \emph{International Conference on Learning Representations}, 2024.
+
+\bibitem{liu2024lost}
+Nelson F. Liu, Kevin Lin, John Hewitt, Ashwin Paranjape, Michele Bevilacqua,
+Fabio Petroni, and Percy Liang.
+\newblock Lost in the middle: How language models use long contexts.
+\newblock \emph{Transactions of the Association for Computational Linguistics},
+2024.
+
+\bibitem{robertson2009probabilistic}
+Stephen Robertson and Hugo Zaragoza.
+\newblock The probabilistic relevance framework: BM25 and beyond.
+\newblock \emph{Foundations and Trends in Information Retrieval}, 3(4):333--389,
+2009.
+
+\end{thebibliography}
 
 \end{document}
