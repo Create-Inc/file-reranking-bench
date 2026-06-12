@@ -249,11 +249,173 @@ Precision@10 use the same three returned files. The metrics are still reported
 at all four cutoffs so that result tables remain compatible with future
 fixtures that contain larger candidate sets.
 
+\section{Signal Definitions}
+
+The benchmark is intentionally agnostic about how a ranked list is produced,
+but file-selection systems are often easiest to compare when described as
+signals. A signal is a deterministic or learned scoring rule that maps a prompt
+$q$ and candidate file $c_i$ to either a real-valued score or a rank. Signals
+can be evaluated independently, normalized onto a common scale, or combined into
+a fused ranking. This section defines signal families that are abstract enough
+to reproduce from public data and broad enough to cover simple baselines as well
+as future submissions.
+
+\subsection{Lexical Matching}
+
+A lexical signal scores candidates by token overlap between the prompt and file
+evidence. The evidence may include the path, filename, directory names, and file
+contents. Let $\tau(x)$ be a tokenizer that lowercases text, splits words, and
+removes punctuation. A simple overlap score is:
+
+\[
+s_{\mathrm{lex}}(q, c_i) =
+\left|\tau(q) \cap \tau(\mathrm{path}(c_i) \cup \mathrm{text}(c_i))\right|.
+\]
+
+More sophisticated sparse-retrieval variants, such as BM25
+\cite{robertson2009probabilistic}, use term frequency, inverse document
+frequency, and document-length normalization. These variants are still lexical
+signals under this benchmark: they rely on observed tokens rather than learned
+semantic representations. Lexical matching is transparent and cheap, but it can
+miss paraphrases. In the current corpus, a button-text prompt can point to a
+file whose path does not share the strongest surface words with the request.
+
+\subsection{Semantic Similarity}
+
+A semantic similarity signal embeds the prompt and each candidate into a vector
+space and ranks by a similarity function such as cosine similarity:
+
+\[
+s_{\mathrm{sem}}(q, c_i) =
+\frac{e(q) \cdot e(c_i)}{\|e(q)\| \|e(c_i)\|}.
+\]
+
+Here $e(\cdot)$ is any documented embedding function over natural language and
+code text. A result that uses this signal should specify the embedding model,
+the file text included in the embedding, truncation behavior, and whether paths
+are embedded alongside contents. The benchmark does not prescribe a specific
+embedding model. The definition is useful because it separates the signal family
+from any particular model choice.
+
+\subsection{Learned Pairwise Reranking}
+
+A learned reranking signal scores a prompt-file pair directly:
+
+\[
+s_{\mathrm{rank}}(q, c_i) = g(q, \mathrm{path}(c_i), \mathrm{text}(c_i)),
+\]
+
+where $g$ may be a cross-encoder, classifier, preference model, or other learned
+function. Unlike a bi-encoder semantic-similarity signal, a pairwise reranker can
+jointly attend to prompt and file evidence. To be reproducible, submissions
+using this family should state the model, input construction, maximum file
+length, and how unavailable or overlong file text is handled. The public
+benchmark need not know those details to define the task, but the details matter
+for comparing independent results.
+
+\subsection{Recency}
+
+A recency signal uses timestamp metadata rather than file text. Define
+
+\[
+t(c_i) =
+\begin{cases}
+\mathrm{updatedAt}(c_i) & \text{if present},\\
+\mathrm{createdAt}(c_i) & \text{otherwise.}
+\end{cases}
+\]
+
+Candidates are sorted by $t(c_i)$ descending. The sorted position can be used
+directly as a rank, or converted to a score with a reciprocal-rank transform:
+
+\[
+s_{\mathrm{rec}}(c_i) = \frac{1}{r_i + \alpha},
+\]
+
+where $r_i$ is the zero-based recency rank and $\alpha > 0$ is a smoothing
+constant. Recency is reproducible from fixture metadata alone. It is also a good
+example of why metadata should be part of a file-selection benchmark: timestamp
+signals can help on follow-up edits but can also mislead when a fresher file is
+not relevant to the prompt.
+
+\subsection{Structural Context}
+
+Some file-selection settings include structural context beyond the prompt and
+candidate list: the file currently being viewed, an import graph, route
+relationships, or component ownership information. A structural signal assigns
+score from those relationships. For example, if $o$ is a known open file and
+$d(o,c_i)$ is graph distance from $o$ to candidate $c_i$, then a decayed
+proximity score can be written as:
+
+\[
+s_{\mathrm{struct}}(c_i) =
+\begin{cases}
+\lambda^{d(o,c_i)} & \text{if } c_i \text{ is reachable from } o,\\
+0 & \text{otherwise,}
+\end{cases}
+\]
+
+with $0 < \lambda < 1$. The current fixture schema does not include an open-file
+field or graph annotations, so this signal is not part of the published
+reference baselines. It is included here because the definition is general and
+future benchmark releases may include explicit structural context.
+
+\subsection{Boilerplate and Distractor Priors}
+
+Generated apps and framework templates often contain files that are valid code
+but unlikely edit targets for user-facing requests. A boilerplate or distractor
+prior assigns lower score to files known to be scaffolding and higher score to
+files known to be authored or task-relevant candidates:
+
+\[
+s_{\mathrm{prior}}(c_i) =
+\begin{cases}
+1 & \text{if } c_i \in A,\\
+0 & \text{if } c_i \in B,
+\end{cases}
+\]
+
+where $A$ is a set of candidate files considered authored or otherwise eligible,
+and $B$ is a set considered boilerplate or distractor-heavy. More graded priors
+are also possible. To keep this signal reproducible, any such sets should be
+derived from public fixture metadata or published annotations rather than
+private project knowledge.
+
+\subsection{Signal Normalization and Fusion}
+
+Signals may produce scores on different scales. A lexical score may be an
+integer overlap count, a sparse retriever may produce unbounded positive
+numbers, a semantic signal may produce cosine values, and recency may produce a
+rank. To combine signals, a benchmark runner can normalize each score-valued
+signal with min-max normalization:
+
+\[
+\tilde{s}_j(c_i) =
+\frac{s_j(c_i) - \min_{c \in C} s_j(c)}
+{\max_{c \in C} s_j(c) - \min_{c \in C} s_j(c)}.
+\]
+
+If the denominator is zero, the signal does not distinguish candidates for that
+query and can be assigned a constant score. Rank-valued signals can be converted
+with reciprocal-rank scoring as above. A fused score is then:
+
+\[
+S(c_i) = \sum_{j=1}^{m} w_j \tilde{s}_j(c_i),
+\]
+
+where $w_j \geq 0$ and $\sum_j w_j = 1$. A result using fusion should publish
+the signal definitions, weights, normalization rules, and tie-breaking policy.
+Those choices are part of the evaluated method, not hidden benchmark state.
+
 \section{Reference Baselines}
 
 The public result table includes four reference rows. These rows are not meant
 to represent a complete leaderboard. They are sanity checks that make the metric
 definitions concrete and give future submissions a stable point of comparison.
+They also instantiate a subset of the signal families above: original order
+uses no scoring signal, recency uses timestamp metadata, lexical matching uses
+prompt-file token evidence, and the oracle row exposes the label-induced upper
+bound for the current candidate sets.
 
 \paragraph{Original candidate order.}
 This baseline returns files in the order provided by the fixture. It is useful
