@@ -17,8 +17,8 @@ This repository publishes the public benchmark artifact only:
 - aggregate evaluation numbers
 - the paper source and PDF
 
-This repository is deliberately limited to the public benchmark artifact.
-Production systems are out of scope.
+This repository is deliberately limited to the public benchmark artifact and
+does not include implementation source code or runtime details.
 
 ## Repository Layout
 
