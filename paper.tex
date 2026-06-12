@@ -294,8 +294,12 @@ Here $e(\cdot)$ is any documented embedding function over natural language and
 code text. A result that uses this signal should specify the embedding model,
 the file text included in the embedding, truncation behavior, and whether paths
 are embedded alongside contents. The benchmark does not prescribe a specific
-embedding model. The definition is useful because it separates the signal family
-from any particular model choice.
+embedding model. This signal family includes dense retrieval and embedding-based
+semantic search methods, including dual-encoder passage retrieval
+\cite{karpukhin2020dense}, sentence embedding models
+\cite{reimers2019sentence}, and code-oriented representation models
+\cite{feng2020codebert,guo2022unixcoder}. The definition is useful because it
+separates the signal family from any particular model choice.
 
 \subsection{Learned Pairwise Reranking}
 
@@ -307,11 +311,13 @@ s_{\mathrm{rank}}(q, c_i) = g(q, \mathrm{path}(c_i), \mathrm{text}(c_i)),
 
 where $g$ may be a cross-encoder, classifier, preference model, or other learned
 function. Unlike a bi-encoder semantic-similarity signal, a pairwise reranker can
-jointly attend to prompt and file evidence. To be reproducible, submissions
-using this family should state the model, input construction, maximum file
-length, and how unavailable or overlong file text is handled. The public
-benchmark need not know those details to define the task, but the details matter
-for comparing independent results.
+jointly attend to prompt and file evidence. This family follows the same broad
+pattern as neural passage reranking, where a model scores each query-document
+pair after an initial candidate set has been formed \cite{nogueira2019passage}.
+To be reproducible, submissions using this family should state the model, input
+construction, maximum file length, and how unavailable or overlong file text is
+handled. The public benchmark need not know those details to define the task,
+but the details matter for comparing independent results.
 
 \subsection{Recency}
 
@@ -445,6 +451,9 @@ S(c_i) = \sum_{j=1}^{m} w_j \tilde{s}_j(c_i),
 where $w_j \geq 0$ and $\sum_j w_j = 1$. A result using fusion should publish
 the signal definitions, weights, normalization rules, and tie-breaking policy.
 Those choices are part of the evaluated method, not hidden benchmark state.
+Rank-level fusion methods such as reciprocal rank fusion
+\cite{cormack2009reciprocal} are also compatible with this benchmark, as long as
+the fusion rule is documented.
 
 \section{Reference Baselines}
 
@@ -555,12 +564,14 @@ easy to inspect, but they limit external validity.
 \section{Relationship to Broader Evaluations}
 
 End-to-end software-agent evaluations such as repository repair benchmarks
-measure whether a model can produce a final correct change. FileRerankingBench
-occupies a smaller slice of that problem. It asks whether the right files are
-available near the top of the candidate list before editing begins. This
-positioning is complementary: a file-selection benchmark cannot replace
-end-to-end tests, but end-to-end tests can make retrieval failures difficult to
-diagnose.
+measure whether a model can produce a final correct change
+\cite{jimenez2024swebench}. Agent platforms and benchmarks also evaluate
+broader software-development loops that include tool use, execution, and
+environment interaction \cite{wang2025openhands}. FileRerankingBench occupies a
+smaller slice of that problem. It asks whether the right files are available
+near the top of the candidate list before editing begins. This positioning is
+complementary: a file-selection benchmark cannot replace end-to-end tests, but
+end-to-end tests can make retrieval failures difficult to diagnose.
 
 The benchmark is also related to information retrieval metrics such as BM25 and
 top-$k$ recall \cite{robertson2009probabilistic}. The difference is the unit of
@@ -630,13 +641,40 @@ intended to grow into a larger corpus while preserving the same public contract:
 prompt-level labels, candidate file metadata, project corpora, and aggregate
 evaluation results.
 
-\begin{thebibliography}{9}
+\begin{thebibliography}{99}
+
+\bibitem{cormack2009reciprocal}
+Gordon V. Cormack, Charles L. A. Clarke, and Stefan B{\"u}ttcher.
+\newblock Reciprocal rank fusion outperforms Condorcet and individual rank
+learning methods.
+\newblock In \emph{Proceedings of the 32nd International ACM SIGIR Conference
+on Research and Development in Information Retrieval}, pages 758--759, 2009.
+
+\bibitem{feng2020codebert}
+Zhangyin Feng, Daya Guo, Duyu Tang, Nan Duan, Xiaocheng Feng, Ming Gong,
+Linjun Shou, Bing Qin, Ting Liu, Daxin Jiang, and Ming Zhou.
+\newblock CodeBERT: A pre-trained model for programming and natural languages.
+\newblock In \emph{Findings of the Association for Computational Linguistics:
+EMNLP 2020}, pages 1536--1547, 2020.
+
+\bibitem{guo2022unixcoder}
+Daya Guo, Shuai Lu, Nan Duan, Yanlin Wang, Ming Zhou, and Jian Yin.
+\newblock UniXcoder: Unified cross-modal pre-training for code representation.
+\newblock In \emph{Proceedings of the 60th Annual Meeting of the Association
+for Computational Linguistics}, pages 7212--7225, 2022.
 
 \bibitem{jimenez2024swebench}
 Carlos E. Jimenez, John Yang, Alexander Wettig, Shunyu Yao, Kexin Pei,
 Ofir Press, and Karthik Narasimhan.
 \newblock SWE-bench: Can language models resolve real-world GitHub issues?
 \newblock In \emph{International Conference on Learning Representations}, 2024.
+
+\bibitem{karpukhin2020dense}
+Vladimir Karpukhin, Barlas O{\u{g}}uz, Sewon Min, Patrick Lewis, Ledell Wu,
+Sergey Edunov, Danqi Chen, and Wen-tau Yih.
+\newblock Dense passage retrieval for open-domain question answering.
+\newblock In \emph{Proceedings of the 2020 Conference on Empirical Methods in
+Natural Language Processing}, pages 6769--6781, 2020.
 
 \bibitem{liu2024lost}
 Nelson F. Liu, Kevin Lin, John Hewitt, Ashwin Paranjape, Michele Bevilacqua,
@@ -645,11 +683,32 @@ Fabio Petroni, and Percy Liang.
 \newblock \emph{Transactions of the Association for Computational Linguistics},
 2024.
 
+\bibitem{nogueira2019passage}
+Rodrigo Nogueira and Kyunghyun Cho.
+\newblock Passage re-ranking with BERT.
+\newblock \emph{arXiv preprint arXiv:1901.04085}, 2019.
+
+\bibitem{reimers2019sentence}
+Nils Reimers and Iryna Gurevych.
+\newblock Sentence-BERT: Sentence embeddings using Siamese BERT-networks.
+\newblock In \emph{Proceedings of the 2019 Conference on Empirical Methods in
+Natural Language Processing}, pages 3982--3992, 2019.
+
 \bibitem{robertson2009probabilistic}
 Stephen Robertson and Hugo Zaragoza.
 \newblock The probabilistic relevance framework: BM25 and beyond.
 \newblock \emph{Foundations and Trends in Information Retrieval}, 3(4):333--389,
 2009.
+
+\bibitem{wang2025openhands}
+Xingyao Wang, Boxuan Li, Yufan Song, Frank F. Xu, Xiangru Tang, Mingchen Zhuge,
+Jiayi Pan, Yueqi Song, Bowen Li, Jaskirat Singh, Hoang H. Tran, Fuqiang Li,
+Ren Ma, Mingzhang Zheng, Bill Qian, Yanjun Shao, Niklas Muennighoff, Yizhe
+Zhang, Binyuan Hui, Junyang Lin, Robert Brennan, Hao Peng, Heng Ji, and Graham
+Neubig.
+\newblock OpenHands: An open platform for AI software developers as generalist
+agents.
+\newblock In \emph{International Conference on Learning Representations}, 2025.
 
 \end{thebibliography}
 
