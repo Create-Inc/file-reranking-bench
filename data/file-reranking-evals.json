@@ -1,0 +1,122 @@
+[
+  {
+    "input": {
+      "project": "hiking-app-small",
+      "userPrompt": "On the landing page, change the color of the \"Begin Your Journey\" button from orange to green",
+      "files": [
+        {
+          "path": "/apps/web/pages/index/+Page.jsx",
+          "createdAt": "2024-01-01T00:00:00.000Z",
+          "updatedAt": null
+        },
+        {
+          "path": "/apps/web/pages/hiking-history/+Page.jsx",
+          "createdAt": "2024-01-01T01:00:00.000Z",
+          "updatedAt": null
+        },
+        {
+          "path": "/apps/web/pages/explore/+Page.jsx",
+          "createdAt": "2024-01-01T02:00:00.000Z",
+          "updatedAt": null
+        }
+      ],
+      "expectedRelevantFiles": ["/apps/web/pages/index/+Page.jsx"]
+    }
+  },
+  {
+    "input": {
+      "project": "hiking-app-small",
+      "userPrompt": "On the landing page, change the color of the \"Begin Your Journey\" button from orange to green",
+      "files": [
+        {
+          "path": "/apps/web/pages/index/+Page.jsx",
+          "createdAt": "2024-01-01T00:00:00.000Z",
+          "updatedAt": "2024-01-02T00:00:00.000Z"
+        },
+        {
+          "path": "/apps/web/pages/hiking-history/+Page.jsx",
+          "createdAt": "2024-01-01T01:00:00.000Z",
+          "updatedAt": null
+        },
+        {
+          "path": "/apps/web/pages/explore/+Page.jsx",
+          "createdAt": "2024-01-01T02:00:00.000Z",
+          "updatedAt": null
+        }
+      ],
+      "expectedRelevantFiles": ["/apps/web/pages/index/+Page.jsx"]
+    }
+  },
+  {
+    "input": {
+      "project": "hiking-app-small",
+      "userPrompt": "Change the color of the \"Start Your Adventure\" button from orange to green",
+      "files": [
+        {
+          "path": "/apps/web/pages/index/+Page.jsx",
+          "createdAt": "2024-01-01T00:00:00.000Z",
+          "updatedAt": null
+        },
+        {
+          "path": "/apps/web/pages/hiking-history/+Page.jsx",
+          "createdAt": "2024-01-01T00:00:00.000Z",
+          "updatedAt": null
+        },
+        {
+          "path": "/apps/web/pages/explore/+Page.jsx",
+          "createdAt": "2024-01-01T00:00:00.000Z",
+          "updatedAt": null
+        }
+      ],
+      "expectedRelevantFiles": ["/apps/web/pages/hiking-history/+Page.jsx"]
+    }
+  },
+  {
+    "input": {
+      "project": "hiking-app-small",
+      "userPrompt": "Change the color of the \"Start Your Adventure\" button from orange to green",
+      "files": [
+        {
+          "path": "/apps/web/pages/index/+Page.jsx",
+          "createdAt": "2024-01-01T00:00:00.000Z",
+          "updatedAt": "2024-01-02T00:00:00.000Z"
+        },
+        {
+          "path": "/apps/web/pages/hiking-history/+Page.jsx",
+          "createdAt": "2024-01-01T00:00:00.000Z",
+          "updatedAt": null
+        },
+        {
+          "path": "/apps/web/pages/explore/+Page.jsx",
+          "createdAt": "2024-01-01T00:00:00.000Z",
+          "updatedAt": null
+        }
+      ],
+      "expectedRelevantFiles": ["/apps/web/pages/hiking-history/+Page.jsx"]
+    }
+  },
+  {
+    "input": {
+      "project": "hiking-app-small",
+      "userPrompt": "Update the existing \"Scoreboard\" page to include a tip button next to the top 3 hikers this week",
+      "files": [
+        {
+          "path": "/apps/web/pages/index/+Page.jsx",
+          "createdAt": "2024-01-01T00:00:00.000Z",
+          "updatedAt": null
+        },
+        {
+          "path": "/apps/web/pages/hiking-history/+Page.jsx",
+          "createdAt": "2024-01-01T00:00:00.000Z",
+          "updatedAt": null
+        },
+        {
+          "path": "/apps/web/pages/explore/+Page.jsx",
+          "createdAt": "2024-01-01T00:00:00.000Z",
+          "updatedAt": null
+        }
+      ],
+      "expectedRelevantFiles": []
+    }
+  }
+]

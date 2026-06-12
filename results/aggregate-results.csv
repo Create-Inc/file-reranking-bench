@@ -1,0 +1,5 @@
+system,recall_at_1,precision_at_1,recall_at_3,precision_at_3,recall_at_5,precision_at_5,recall_at_10,precision_at_10
+Original candidate order,0.6000,0.4000,1.0000,0.2667,1.0000,0.2667,1.0000,0.2667
+Recency baseline,0.4000,0.2000,1.0000,0.2667,1.0000,0.2667,1.0000,0.2667
+Lexical baseline,0.6000,0.4000,1.0000,0.2667,1.0000,0.2667,1.0000,0.2667
+Rank-all oracle upper bound,1.0000,0.8000,1.0000,0.2667,1.0000,0.2667,1.0000,0.2667
